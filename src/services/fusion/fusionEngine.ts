@@ -28,6 +28,9 @@ const AUTO_FUSE_INTERVAL_MS = 5_000;
 // Heuristic fusion (TypeScript fallback)
 // ---------------------------------------------------------------------------
 
+/** Maximum time difference (ms) for temporal correlation. */
+const TEMPORAL_WINDOW_MS = 60_000;
+
 /**
  * Perform a simple proximity-based fusion pass over the entity set.
  *
@@ -73,13 +76,70 @@ function fuseProximity(entities: Entity[]): FusionRelation[] {
 }
 
 /**
+ * Temporal correlation: detect entities that were recently updated within
+ * close temporal proximity AND are heading toward each other (converging).
+ */
+function fuseTemporal(entities: Entity[]): FusionRelation[] {
+  const relations: FusionRelation[] = [];
+  const now = Date.now();
+  const isoNow = new Date().toISOString();
+
+  for (let i = 0; i < entities.length; i++) {
+    for (let j = i + 1; j < entities.length; j++) {
+      const a = entities[i];
+      const b = entities[j];
+
+      if (a.type === b.type && a.provider === b.provider) continue;
+
+      // Check temporal proximity (both recently updated)
+      const tA = new Date(a.lastSeen).getTime();
+      const tB = new Date(b.lastSeen).getTime();
+      if (Math.abs(tA - tB) > TEMPORAL_WINDOW_MS) continue;
+      if (now - tA > TEMPORAL_WINDOW_MS * 2 || now - tB > TEMPORAL_WINDOW_MS * 2) continue;
+
+      // Check if they are within a wider radius (5km) and converging
+      const dist = haversineMetres(
+        a.position.lat, a.position.lon,
+        b.position.lat, b.position.lon,
+      );
+
+      if (dist > 5000) continue;
+
+      // Simple convergence check: heading difference suggests approach
+      const headingDiff = Math.abs(a.heading - b.heading);
+      const isConverging = headingDiff > 90 && headingDiff < 270;
+
+      if (isConverging && dist < 3000) {
+        const timeFactor = 1 - Math.abs(tA - tB) / TEMPORAL_WINDOW_MS;
+        const distFactor = 1 - dist / 5000;
+        const confidence = (timeFactor * 0.4 + distFactor * 0.6) * 0.8;
+
+        if (confidence >= MIN_CONFIDENCE) {
+          relations.push({
+            entityIds: [a.id, b.id],
+            type: 'temporal',
+            confidence,
+            description: `${a.label} and ${b.label} converging (${Math.round(dist)}m, hdg diff ${Math.round(headingDiff)})`,
+            detectedAt: isoNow,
+          });
+        }
+      }
+    }
+  }
+
+  return relations;
+}
+
+/**
  * Run the full fusion pipeline and return the result.
  *
  * In the future this will delegate to the WASM module via a Web Worker.
  */
 export function runFusion(entities: Entity[]): FusionResult {
   const start = performance.now();
-  const relations = fuseProximity(entities);
+  const proximityRelations = fuseProximity(entities);
+  const temporalRelations = fuseTemporal(entities);
+  const relations = [...proximityRelations, ...temporalRelations];
   const durationMs = performance.now() - start;
 
   return {

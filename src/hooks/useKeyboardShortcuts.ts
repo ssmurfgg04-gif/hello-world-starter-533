@@ -9,6 +9,7 @@ import { useEntityStore } from '@/store/entityStore';
  *   2 - Toggle vessel layer
  *   3 - Toggle trails
  *   4 - Toggle fusion arcs
+ *   5 - Toggle monitoring zones
  *   Escape - Clear entity selection
  *   / - Focus search bar
  */
@@ -40,6 +41,9 @@ export function useKeyboardShortcuts(): void {
           break;
         case '4':
           store.toggleRelations();
+          break;
+        case '5':
+          store.toggleZones();
           break;
         case 'Escape':
           store.clearSelection();

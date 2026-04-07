@@ -9,10 +9,11 @@
 import { useCallback, useMemo, useState } from 'react';
 import DeckGL from '@deck.gl/react';
 import { Map as MapGL } from 'react-map-gl/maplibre';
-import { ScatterplotLayer, ArcLayer, PathLayer, TextLayer } from '@deck.gl/layers';
+import { ScatterplotLayer, ArcLayer, PathLayer, TextLayer, GeoJsonLayer } from '@deck.gl/layers';
 import type { MapViewState, PickingInfo, Layer } from '@deck.gl/core';
 import { useEntityStore } from '@/store/entityStore';
 import { EntityTooltip } from '@/components/EntityTooltip';
+import { EXCLUSION_ZONES, type ZoneProperties } from '@/data/exclusionZones';
 import type { Entity } from '@/types/entities';
 
 import 'maplibre-gl/dist/maplibre-gl.css';
@@ -61,6 +62,7 @@ export function DeckGlobe() {
   const showVessels = useEntityStore((s) => s.showVessels);
   const showTrails = useEntityStore((s) => s.showTrails);
   const showRelations = useEntityStore((s) => s.showRelations);
+  const showZones = useEntityStore((s) => s.showZones);
   const selectEntity = useEntityStore((s) => s.selectEntity);
 
   // Derived data
@@ -240,6 +242,26 @@ export function DeckGlobe() {
       );
     }
 
+    // GeoJSON exclusion / monitoring zones
+    if (showZones) {
+      result.push(
+        new GeoJsonLayer({
+          id: 'exclusion-zones',
+          data: EXCLUSION_ZONES as any,
+          pickable: true,
+          stroked: true,
+          filled: true,
+          getFillColor: (f: any) => f.properties?.colour ?? [100, 100, 100, 40],
+          getLineColor: (f: any) => {
+            const c = f.properties?.colour ?? [100, 100, 100, 120];
+            return [c[0], c[1], c[2], Math.min(c[3] * 3, 255)];
+          },
+          getLineWidth: 2,
+          lineWidthMinPixels: 1,
+        }),
+      );
+    }
+
     // Fusion arcs
     if (showRelations) {
       result.push(
@@ -269,6 +291,7 @@ export function DeckGlobe() {
     showVessels,
     showTrails,
     showRelations,
+    showZones,
   ]);
 
   return (

@@ -28,11 +28,13 @@ export function ControlPanel() {
   const showVessels = useEntityStore((s) => s.showVessels);
   const showTrails = useEntityStore((s) => s.showTrails);
   const showRelations = useEntityStore((s) => s.showRelations);
+  const showZones = useEntityStore((s) => s.showZones);
 
   const toggleAircraft = useEntityStore((s) => s.toggleAircraft);
   const toggleVessels = useEntityStore((s) => s.toggleVessels);
   const toggleTrails = useEntityStore((s) => s.toggleTrails);
   const toggleRelations = useEntityStore((s) => s.toggleRelations);
+  const toggleZones = useEntityStore((s) => s.toggleZones);
 
   const aircraftCount = Array.from(entities.values()).filter(
     (e) => e.type === 'aircraft',
@@ -123,11 +125,20 @@ export function ControlPanel() {
           />
           Fusion arcs
         </label>
+        <label className="flex cursor-pointer items-center gap-2 text-xs">
+          <input
+            type="checkbox"
+            checked={showZones}
+            onChange={toggleZones}
+            className="accent-red-500"
+          />
+          Monitoring zones
+        </label>
       </div>
 
       {/* Keyboard shortcut hints */}
       <div className="space-y-0.5 text-[10px] text-muted-foreground">
-        <div><kbd className="rounded bg-muted/60 px-1">1-4</kbd> Toggle layers</div>
+        <div><kbd className="rounded bg-muted/60 px-1">1-5</kbd> Toggle layers</div>
         <div><kbd className="rounded bg-muted/60 px-1">/</kbd> Search &middot; <kbd className="rounded bg-muted/60 px-1">Esc</kbd> Deselect</div>
       </div>
 
