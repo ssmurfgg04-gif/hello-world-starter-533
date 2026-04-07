@@ -5,6 +5,7 @@ import { EntityDetailSidebar } from '@/components/EntityDetailSidebar';
 import { SearchBar } from '@/components/SearchBar';
 import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts';
 import { connect as connectAdsbWs, disconnect as disconnectAdsbWs } from '@/services/osint/aircraftService';
+import { connect as connectAdsbFi, disconnect as disconnectAdsbFi } from '@/services/osint/adsbfiService';
 import { connect as connectOpenSky, disconnect as disconnectOpenSky } from '@/services/osint/openSkyService';
 import { connect as connectMaritime, disconnect as disconnectMaritime } from '@/services/osint/maritimeService';
 import { shouldUseDemoMode, startSimulation, stopSimulation } from '@/services/simulation/demoSimulator';
@@ -19,11 +20,12 @@ const PRUNE_INTERVAL_MS = 30_000;
 /**
  * Determine the best aircraft data source:
  * 1. If VITE_ADSB_API_KEY is set, use the premium ADS-B WebSocket
- * 2. Otherwise, use OpenSky Network REST API (free, no key, no signup)
+ * 2. Otherwise, use adsb.fi REST API (free, no key, no signup, more detailed)
+ *    with OpenSky Network as secondary source
  */
-function getAircraftStrategy(): 'adsb-ws' | 'opensky' {
+function getAircraftStrategy(): 'adsb-ws' | 'free' {
   const adsbKey = import.meta.env.VITE_ADSB_API_KEY ?? '';
-  return adsbKey ? 'adsb-ws' : 'opensky';
+  return adsbKey ? 'adsb-ws' : 'free';
 }
 
 const Index = () => {
@@ -42,8 +44,8 @@ const Index = () => {
         audit.info('boot', 'Aircraft source: ADS-B Exchange WebSocket (API key present)');
         connectAdsbWs();
       } else {
-        audit.info('boot', 'Aircraft source: OpenSky Network REST API (free, no key)');
-        connectOpenSky();
+        audit.info('boot', 'Aircraft source: adsb.fi REST API (free, no key, no signup)');
+        connectAdsbFi();
       }
 
       // Maritime data source (requires AISstream.io key)
@@ -68,6 +70,7 @@ const Index = () => {
         stopSimulation();
       } else {
         disconnectAdsbWs();
+        disconnectAdsbFi();
         disconnectOpenSky();
         disconnectMaritime();
       }
