@@ -144,9 +144,14 @@ function headingBetween(from: Waypoint, to: Waypoint): number {
 // ---------------------------------------------------------------------------
 
 /**
- * Returns true if demo mode should be used (no API keys configured).
+ * Returns true if demo mode should be used.
+ * Demo mode activates when VITE_DEMO_MODE=true or when no API keys
+ * are configured. Set VITE_LIVE_MODE=true to force live connections
+ * even without keys (uses free/open feeds).
  */
 export function shouldUseDemoMode(): boolean {
+  if (import.meta.env.VITE_DEMO_MODE === 'true') return true;
+  if (import.meta.env.VITE_LIVE_MODE === 'true') return false;
   const adsbKey = import.meta.env.VITE_ADSB_API_KEY ?? '';
   const aisKey = import.meta.env.VITE_AIS_API_KEY ?? '';
   return !adsbKey && !aisKey;

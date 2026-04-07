@@ -125,6 +125,12 @@ export function ControlPanel() {
         </label>
       </div>
 
+      {/* Keyboard shortcut hints */}
+      <div className="space-y-0.5 text-[10px] text-muted-foreground">
+        <div><kbd className="rounded bg-muted/60 px-1">1-4</kbd> Toggle layers</div>
+        <div><kbd className="rounded bg-muted/60 px-1">/</kbd> Search &middot; <kbd className="rounded bg-muted/60 px-1">Esc</kbd> Deselect</div>
+      </div>
+
       <div className="border-t border-border/30 pt-2 text-[10px] text-muted-foreground">
         OSINT Platform v2 &middot; Deck.gl + WASM
       </div>
