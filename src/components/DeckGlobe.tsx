@@ -10,11 +10,14 @@ import { useCallback, useMemo, useState } from 'react';
 import DeckGL from '@deck.gl/react';
 import { Map as MapGL } from 'react-map-gl/maplibre';
 import { ScatterplotLayer, ArcLayer, PathLayer, TextLayer, GeoJsonLayer } from '@deck.gl/layers';
+import { HeatmapLayer } from '@deck.gl/aggregation-layers';
 import type { MapViewState, PickingInfo, Layer } from '@deck.gl/core';
 import { useEntityStore } from '@/store/entityStore';
+import { useGlobalEventsStore } from '@/store/globalEventsStore';
 import { EntityTooltip } from '@/components/EntityTooltip';
-import { EXCLUSION_ZONES, type ZoneProperties } from '@/data/exclusionZones';
+import { EXCLUSION_ZONES } from '@/data/exclusionZones';
 import type { Entity } from '@/types/entities';
+import type { GeoEvent } from '@/types/events';
 
 import 'maplibre-gl/dist/maplibre-gl.css';
 
@@ -65,6 +68,11 @@ export function DeckGlobe() {
   const showZones = useEntityStore((s) => s.showZones);
   const selectEntity = useEntityStore((s) => s.selectEntity);
 
+  // Global events store
+  const geoEvents = useGlobalEventsStore((s) => s.allGeoEvents);
+  const showEarthquakes = useGlobalEventsStore((s) => s.showEarthquakes);
+  const showNaturalEvents = useGlobalEventsStore((s) => s.showNaturalEvents);
+
   // Derived data
   const entityArray = useMemo(() => Array.from(entities.values()), [entities]);
   const aircraftData = useMemo(
@@ -89,6 +97,16 @@ export function DeckGlobe() {
     });
     return paths;
   }, [trails]);
+
+  // Geo events data
+  const earthquakeData = useMemo(
+    () => geoEvents.filter((e) => e.type === 'earthquake'),
+    [geoEvents],
+  );
+  const naturalEventData = useMemo(
+    () => geoEvents.filter((e) => e.type !== 'earthquake'),
+    [geoEvents],
+  );
 
   // Arc data for fusion relations
   const arcData = useMemo(() => {
@@ -281,17 +299,90 @@ export function DeckGlobe() {
       );
     }
 
+    // Earthquake scatterplot (USGS)
+    if (showEarthquakes && earthquakeData.length > 0) {
+      result.push(
+        new ScatterplotLayer({
+          id: 'earthquake-layer',
+          data: earthquakeData,
+          pickable: true,
+          filled: true,
+          radiusMinPixels: 5,
+          radiusMaxPixels: 30,
+          getPosition: (d: GeoEvent) => [d.lon, d.lat],
+          getFillColor: (d: GeoEvent) => {
+            const mag = d.magnitude ?? 3;
+            if (mag >= 6) return [255, 0, 0, 200];
+            if (mag >= 5) return [255, 100, 0, 180];
+            if (mag >= 4) return [255, 180, 0, 160];
+            return [255, 220, 50, 140];
+          },
+          getRadius: (d: GeoEvent) => ((d.magnitude ?? 3) ** 2) * 500,
+          updateTriggers: { getPosition: [earthquakeData] },
+        }),
+      );
+    }
+
+    // Natural events (NASA EONET)
+    if (showNaturalEvents && naturalEventData.length > 0) {
+      result.push(
+        new ScatterplotLayer({
+          id: 'natural-events-layer',
+          data: naturalEventData,
+          pickable: true,
+          filled: true,
+          radiusMinPixels: 6,
+          radiusMaxPixels: 18,
+          getPosition: (d: GeoEvent) => [d.lon, d.lat],
+          getFillColor: (d: GeoEvent) => {
+            switch (d.type) {
+              case 'wildfire': return [255, 80, 0, 200];
+              case 'volcano': return [200, 0, 0, 220];
+              case 'storm': return [100, 100, 255, 180];
+              case 'flood': return [0, 150, 255, 180];
+              case 'iceberg': return [150, 220, 255, 180];
+              default: return [180, 180, 180, 160];
+            }
+          },
+          getRadius: 8000,
+          updateTriggers: { getPosition: [naturalEventData] },
+        }),
+      );
+    }
+
+    // Entity density heatmap
+    if (entityArray.length > 10) {
+      result.push(
+        new HeatmapLayer({
+          id: 'heatmap-layer',
+          data: entityArray,
+          getPosition: (d: Entity) => [d.position.lon, d.position.lat],
+          getWeight: 1,
+          radiusPixels: 40,
+          intensity: 1,
+          threshold: 0.05,
+          opacity: 0.3,
+          updateTriggers: { getPosition: [entityArray] },
+        }),
+      );
+    }
+
     return result;
   }, [
     aircraftData,
     vesselData,
     trailPaths,
     arcData,
+    earthquakeData,
+    naturalEventData,
+    entityArray,
     showAircraft,
     showVessels,
     showTrails,
     showRelations,
     showZones,
+    showEarthquakes,
+    showNaturalEvents,
   ]);
 
   return (
