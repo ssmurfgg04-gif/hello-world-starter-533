@@ -27,6 +27,7 @@ interface EntityState {
   showVessels: boolean;
   showTrails: boolean;
   showRelations: boolean;
+  showZones: boolean;
 
   /** Currently selected entity id (for detail sidebar). */
   selectedEntityId: string | null;
@@ -49,6 +50,7 @@ interface EntityActions {
   toggleVessels: () => void;
   toggleTrails: () => void;
   toggleRelations: () => void;
+  toggleZones: () => void;
 
   /** Purge entities that have not been seen within `thresholdMs`. */
   pruneStale: (thresholdMs: number) => void;
@@ -81,6 +83,7 @@ export const useEntityStore = create<EntityStore>((set, get) => ({
   showVessels: true,
   showTrails: true,
   showRelations: true,
+  showZones: true,
 
   selectedEntityId: null,
 
@@ -136,6 +139,7 @@ export const useEntityStore = create<EntityStore>((set, get) => ({
   toggleVessels: () => set((s) => ({ showVessels: !s.showVessels })),
   toggleTrails: () => set((s) => ({ showTrails: !s.showTrails })),
   toggleRelations: () => set((s) => ({ showRelations: !s.showRelations })),
+  toggleZones: () => set((s) => ({ showZones: !s.showZones })),
 
   selectEntity: (id) => set({ selectedEntityId: id }),
   clearSelection: () => set({ selectedEntityId: null }),
