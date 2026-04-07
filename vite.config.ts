@@ -15,4 +15,26 @@ export default defineConfig(({ mode }) => ({
       "@": path.resolve(__dirname, "./src"),
     },
   },
+  // Enable top-level await for WASM module initialisation
+  esbuild: {
+    supported: {
+      "top-level-await": true,
+    },
+  },
+  // Ensure .wasm files are served with the correct MIME type
+  assetsInclude: ["**/*.wasm"],
+  worker: {
+    format: "es",
+  },
+  build: {
+    target: "esnext",
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          deckgl: ["deck.gl", "@deck.gl/core", "@deck.gl/layers", "@deck.gl/react"],
+          maplibre: ["maplibre-gl"],
+        },
+      },
+    },
+  },
 }));

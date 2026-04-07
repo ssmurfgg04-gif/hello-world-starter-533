@@ -1,0 +1,48 @@
+/*
+ * OSINT Platform -- Global Styles
+ *
+ * CRITICAL: The html, body, and #root elements MUST have explicit height
+ * declarations. Without these the Deck.gl / WebGL canvas will collapse to
+ * 0px, producing the infamous "black void" bug that plagued the V1 prototype.
+ */
+
+html,
+body {
+  height: 100%;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  background: #0a0a0a;
+  color: #e5e5e5;
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+#root {
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
+}
+
+/*
+ * Full-viewport container for the Deck.gl globe.
+ * This ensures the WebGL canvas always has a deterministic size.
+ */
+.deck-globe-container {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+/*
+ * Override maplibre-gl canvas sizing to prevent any CSS collapse.
+ */
+.maplibregl-map,
+.maplibregl-canvas-container,
+.maplibregl-canvas {
+  width: 100% !important;
+  height: 100% !important;
+}
