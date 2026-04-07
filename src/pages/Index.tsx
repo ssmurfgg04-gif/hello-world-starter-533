@@ -3,26 +3,24 @@ import { DeckGlobe } from '@/components/DeckGlobe';
 import { ControlPanel } from '@/components/ControlPanel';
 import { EntityDetailSidebar } from '@/components/EntityDetailSidebar';
 import { SearchBar } from '@/components/SearchBar';
+import { IntelDashboard } from '@/components/IntelDashboard';
 import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts';
 import { connect as connectAdsbWs, disconnect as disconnectAdsbWs } from '@/services/osint/aircraftService';
 import { connect as connectAdsbFi, disconnect as disconnectAdsbFi } from '@/services/osint/adsbfiService';
 import { connect as connectOpenSky, disconnect as disconnectOpenSky } from '@/services/osint/openSkyService';
 import { connect as connectMaritime, disconnect as disconnectMaritime } from '@/services/osint/maritimeService';
+import { connect as connectEarthquakes, disconnect as disconnectEarthquakes } from '@/services/osint/earthquakeService';
+import { connect as connectNaturalEvents, disconnect as disconnectNaturalEvents } from '@/services/osint/naturalEventsService';
+import { connect as connectMarkets, disconnect as disconnectMarkets } from '@/services/osint/marketService';
 import { shouldUseDemoMode, startSimulation, stopSimulation } from '@/services/simulation/demoSimulator';
 import { startAutoFuse, stopAutoFuse } from '@/services/fusion/fusionEngine';
+import { startAnalysis, stopAnalysis } from '@/services/analysis/aiAnalysisEngine';
 import { useEntityStore } from '@/store/entityStore';
 import * as audit from '@/services/audit/auditLogger';
 
-/** Purge entities older than 5 minutes. */
 const STALE_THRESHOLD_MS = 5 * 60 * 1000;
 const PRUNE_INTERVAL_MS = 30_000;
 
-/**
- * Determine the best aircraft data source:
- * 1. If VITE_ADSB_API_KEY is set, use the premium ADS-B WebSocket
- * 2. Otherwise, use adsb.fi REST API (free, no key, no signup, more detailed)
- *    with OpenSky Network as secondary source
- */
 function getAircraftStrategy(): 'adsb-ws' | 'free' {
   const adsbKey = import.meta.env.VITE_ADSB_API_KEY ?? '';
   return adsbKey ? 'adsb-ws' : 'free';
@@ -48,19 +46,27 @@ const Index = () => {
         connectAdsbFi();
       }
 
-      // Maritime data source (requires AISstream.io key)
+      // Maritime data source
       const aisKey = import.meta.env.VITE_AIS_API_KEY ?? '';
       if (aisKey) {
         audit.info('boot', 'Maritime source: AISstream.io WebSocket');
         connectMaritime();
       } else {
-        audit.warn('boot', 'No AIS API key -- maritime feed disabled. Get a free key at https://aisstream.io/');
+        audit.warn('boot', 'No AIS API key -- maritime feed disabled');
       }
     }
 
-    startAutoFuse();
+    // Always-on services (free, no key, no signup)
+    connectEarthquakes();
+    connectNaturalEvents();
+    connectMarkets();
+    audit.info('boot', 'Started: USGS earthquakes, NASA EONET, CoinGecko markets (all free)');
 
-    // Periodic stale-entity cleanup
+    // Analysis engines
+    startAutoFuse();
+    startAnalysis();
+
+    // Stale entity cleanup
     const pruneTimer = setInterval(() => {
       useEntityStore.getState().pruneStale(STALE_THRESHOLD_MS);
     }, PRUNE_INTERVAL_MS);
@@ -74,7 +80,11 @@ const Index = () => {
         disconnectOpenSky();
         disconnectMaritime();
       }
+      disconnectEarthquakes();
+      disconnectNaturalEvents();
+      disconnectMarkets();
       stopAutoFuse();
+      stopAnalysis();
       clearInterval(pruneTimer);
     };
   }, []);
@@ -84,6 +94,7 @@ const Index = () => {
       <DeckGlobe />
       <ControlPanel />
       <SearchBar />
+      <IntelDashboard />
       <EntityDetailSidebar />
     </div>
   );
