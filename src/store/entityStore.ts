@@ -27,6 +27,9 @@ interface EntityState {
   showVessels: boolean;
   showTrails: boolean;
   showRelations: boolean;
+
+  /** Currently selected entity id (for detail sidebar). */
+  selectedEntityId: string | null;
 }
 
 interface EntityActions {
@@ -49,6 +52,11 @@ interface EntityActions {
 
   /** Purge entities that have not been seen within `thresholdMs`. */
   pruneStale: (thresholdMs: number) => void;
+
+  /** Select an entity by id (opens detail sidebar). */
+  selectEntity: (id: string) => void;
+  /** Clear the entity selection. */
+  clearSelection: () => void;
 }
 
 export type EntityStore = EntityState & EntityActions;
@@ -73,6 +81,8 @@ export const useEntityStore = create<EntityStore>((set, get) => ({
   showVessels: true,
   showTrails: true,
   showRelations: true,
+
+  selectedEntityId: null,
 
   upsertEntities: (incoming) => {
     set((state) => {
@@ -126,6 +136,9 @@ export const useEntityStore = create<EntityStore>((set, get) => ({
   toggleVessels: () => set((s) => ({ showVessels: !s.showVessels })),
   toggleTrails: () => set((s) => ({ showTrails: !s.showTrails })),
   toggleRelations: () => set((s) => ({ showRelations: !s.showRelations })),
+
+  selectEntity: (id) => set({ selectedEntityId: id }),
+  clearSelection: () => set({ selectedEntityId: null }),
 
   pruneStale: (thresholdMs) => {
     const now = Date.now();

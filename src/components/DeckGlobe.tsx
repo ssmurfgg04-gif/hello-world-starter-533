@@ -61,6 +61,7 @@ export function DeckGlobe() {
   const showVessels = useEntityStore((s) => s.showVessels);
   const showTrails = useEntityStore((s) => s.showTrails);
   const showRelations = useEntityStore((s) => s.showRelations);
+  const selectEntity = useEntityStore((s) => s.selectEntity);
 
   // Derived data
   const entityArray = useMemo(() => Array.from(entities.values()), [entities]);
@@ -117,6 +118,16 @@ export function DeckGlobe() {
       }
     },
     [],
+  );
+
+  // Click handler -- select entity for detail sidebar
+  const onClick = useCallback(
+    (info: PickingInfo) => {
+      if (info.object && (info.object as Entity).id) {
+        selectEntity((info.object as Entity).id);
+      }
+    },
+    [selectEntity],
   );
 
   // ---------------------------------------------------------------------------
@@ -269,6 +280,7 @@ export function DeckGlobe() {
         controller={true}
         layers={layers}
         onHover={onHover}
+        onClick={onClick}
         getTooltip={() => null}
       >
         <MapGL mapStyle={MAP_STYLE} />
