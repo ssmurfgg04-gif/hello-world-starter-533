@@ -32,7 +32,8 @@ import { startSimulation, stopSimulation } from '@/services/simulation/demoSimul
 import { startAutoFuse, stopAutoFuse } from '@/services/fusion/fusionEngine';
 import { startAnalysis, stopAnalysis } from '@/services/analysis/aiAnalysisEngine';
 import { startSightingDetection, stopSightingDetection } from '@/services/fusion/sightingDetection';
-import { initPersistence, shutdownPersistence } from '@/services/persistence/persistenceIntegration';
+// Persistence disabled for browser build - enable when server-side
+// import { initPersistence, shutdownPersistence } from '@/services/persistence/persistenceIntegration';
 import { useEntityStore } from '@/store/entityStore';
 import * as audit from '@/services/audit/auditLogger';
 
@@ -84,14 +85,15 @@ const Index = () => {
     connectThreatIntel(); // Cyber threat intel (abuse.ch URLhaus, free)
     audit.info('boot', 'Started: USGS, NASA EONET, NASA ISS, GDACS, Open-Meteo, Celestrak, abuse.ch URLhaus, CoinGecko, Frankfurter, adsb.fi, OpenSky (all free, no key required)');
 
-    // Initialize persistence layer (PostgreSQL + TimescaleDB)
-    initPersistence().then((connected) => {
-      if (connected) {
-        audit.info('boot', 'Persistence layer active (PostgreSQL + TimescaleDB)');
-      } else {
-        audit.warn('boot', 'Persistence layer disabled (database unavailable)');
-      }
-    });
+    // Persistence layer (PostgreSQL + TimescaleDB) - server-side only
+    // initPersistence().then((connected) => {
+    //   if (connected) {
+    //     audit.info('boot', 'Persistence layer active (PostgreSQL + TimescaleDB)');
+    //   } else {
+    //     audit.warn('boot', 'Persistence layer disabled (database unavailable)');
+    //   }
+    // });
+    audit.info('boot', 'Running in browser mode (persistence disabled)');
 
     // Demo simulator as fallback - starts after 8s if no live aircraft data flowing
     const demoCheckTimer = setTimeout(() => {
@@ -129,9 +131,8 @@ const Index = () => {
       disconnectVesselFeed();
       disconnectForex();
       disconnectWeather();
-      shutdownPersistende();
-      cisconnectGDACS();eTimr);
-      clearTimeout(demoCheck
+      disconnectGDACS();
+      clearTimeout(demoCheckTimer);
       disconnectSatellites();
       disconnectISS();
       disconnectAPRS();

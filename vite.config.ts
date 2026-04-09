@@ -52,6 +52,13 @@ export default defineConfig(({ mode }) => ({
     supported: {
       "top-level-await": true,
     },
+    define: {
+      // Stub Prisma in browser builds
+      'process.env.PRISMA_CLIENT': 'undefined',
+    },
+  },
+  optimizeDeps: {
+    exclude: ['@prisma/client'],
   },
   // Ensure .wasm files are served with the correct MIME type
   assetsInclude: ["**/*.wasm"],
@@ -61,6 +68,7 @@ export default defineConfig(({ mode }) => ({
   build: {
     target: "esnext",
     rollupOptions: {
+      external: ["@prisma/client"],
       output: {
         manualChunks: {
           deckgl: ["deck.gl", "@deck.gl/core", "@deck.gl/layers", "@deck.gl/react"],

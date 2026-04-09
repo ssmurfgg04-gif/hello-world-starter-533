@@ -6,8 +6,21 @@
  */
 
 import { useState, useEffect, useCallback } from 'react';
-import type { Sighting } from '@prisma/client';
 import { getRecentSightings, getHighRiskSightings } from '@/services/fusion/sightingDetection';
+
+// Local Sighting type (matches Prisma schema)
+interface Sighting {
+  id: string;
+  entityAId: string;
+  entityALabel: string;
+  entityBId: string;
+  entityBLabel: string;
+  distanceKm: number;
+  aiRiskScore: number | null;
+  aiSummary: string | null;
+  detectedAt: Date;
+  firstSeen: Date;
+}
 import { Eye, AlertTriangle, Clock, MapPin, Filter, Search } from 'lucide-react';
 
 export function SightingPanel() {

@@ -7,8 +7,10 @@
  */
 
 import { useEntityStore } from '@/store/entityStore';
-import { getPrisma } from '@/services/persistence/dbService';
 import type { Entity } from '@/types/entities';
+
+// Browser-only mode - no DB persistence
+const isBrowser = typeof window !== 'undefined';
 
 // Proximity threshold in km
 const DEFAULT_PROXIMITY_KM = 50;
