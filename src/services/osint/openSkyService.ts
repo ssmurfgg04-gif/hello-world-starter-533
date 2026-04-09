@@ -19,7 +19,8 @@ import { useEntityStore } from '@/store/entityStore';
 // Config
 // ---------------------------------------------------------------------------
 
-const API_BASE = 'https://opensky-network.org/api';
+// Use Vite proxy to bypass CORS
+const API_URL = '/api/opensky/states/all';
 const POLL_INTERVAL_MS = 10_000; // 10 seconds (safe for anonymous rate limit)
 
 // ---------------------------------------------------------------------------
@@ -97,7 +98,7 @@ function parseStateVector(sv: unknown[]): Entity | null {
 
 async function fetchStates(): Promise<void> {
   try {
-    const response = await fetch(`${API_BASE}/states/all`);
+    const response = await fetch(API_URL);
 
     if (!response.ok) {
       if (response.status === 429) {

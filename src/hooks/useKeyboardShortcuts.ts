@@ -7,9 +7,12 @@ import { useEntityStore } from '@/store/entityStore';
  * Shortcuts:
  *   1 - Toggle aircraft layer
  *   2 - Toggle vessel layer
- *   3 - Toggle trails
- *   4 - Toggle fusion arcs
- *   5 - Toggle monitoring zones
+ *   3 - Toggle satellite layer
+ *   4 - Toggle trails
+ *   5 - Toggle fusion arcs
+ *   6 - Toggle monitoring zones
+ *   f - Toggle fullscreen
+ *   e - Export data
  *   Escape - Clear entity selection
  *   / - Focus search bar
  */
@@ -37,17 +40,36 @@ export function useKeyboardShortcuts(): void {
           store.toggleVessels();
           break;
         case '3':
-          store.toggleTrails();
+          store.toggleSatellites();
           break;
         case '4':
-          store.toggleRelations();
+          store.toggleTrails();
           break;
         case '5':
+          store.toggleRelations();
+          break;
+        case '6':
           store.toggleZones();
           break;
         case 'Escape':
           store.clearSelection();
           break;
+        case 'f':
+        case 'F':
+          if (typeof document !== 'undefined') {
+            if (!document.fullscreenElement) {
+              document.documentElement.requestFullscreen().catch(() => {});
+            } else {
+              document.exitFullscreen().catch(() => {});
+            }
+          }
+          break;
+        case 'e':
+        case 'E': {
+          // Trigger export - dispatch custom event
+          window.dispatchEvent(new CustomEvent('trigger-export'));
+          break;
+        }
         case '/': {
           e.preventDefault();
           const searchInput = document.querySelector<HTMLInputElement>(

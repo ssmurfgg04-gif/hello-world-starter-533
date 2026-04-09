@@ -4,7 +4,7 @@
  */
 
 import { useGlobalEventsStore } from '@/store/globalEventsStore';
-import type { AnalysisInsight, GeoEvent, MarketTicker } from '@/types/events';
+import type { AnalysisInsight, GeoEvent, MarketTicker, CommodityTicker, ForexTicker } from '@/types/events';
 
 const SEVERITY_COLOURS: Record<string, string> = {
   info: 'border-l-blue-500',
@@ -73,12 +73,14 @@ export function IntelDashboard() {
   const geoEvents = useGlobalEventsStore((s) => s.allGeoEvents);
   const tickers = useGlobalEventsStore((s) => s.marketTickers);
   const alerts = useGlobalEventsStore((s) => s.marketAlerts);
+  const commodities = useGlobalEventsStore((s) => s.commodityTickers);
+  const forex = useGlobalEventsStore((s) => s.forexTickers);
 
   return (
-    <div className="absolute bottom-4 right-4 top-4 z-30 flex w-72 flex-col gap-2 overflow-hidden rounded-lg border border-border/40 bg-background/80 shadow-xl backdrop-blur-lg">
+    <div className="absolute right-3 top-3 z-30 flex max-h-[calc(100vh-120px)] w-60 flex-col gap-2 overflow-hidden rounded-lg border border-white/10 bg-black/70 shadow-2xl backdrop-blur-xl text-white">
       {/* Header */}
-      <div className="border-b border-border/30 px-3 py-2">
-        <h2 className="text-sm font-bold text-foreground">Intelligence Feed</h2>
+      <div className="border-b border-white/10 px-3 py-2">
+        <h2 className="text-sm font-bold text-white">Intelligence Feed</h2>
       </div>
 
       <div className="flex-1 overflow-y-auto px-3">
@@ -127,10 +129,32 @@ export function IntelDashboard() {
             </div>
           </Section>
         )}
+
+        {/* Commodities */}
+        {commodities.length > 0 && (
+          <Section title="Commodities">
+            <div className="space-y-1">
+              {commodities.slice(0, 8).map((c) => (
+                <CommodityRow key={c.id} commodity={c} />
+              ))}
+            </div>
+          </Section>
+        )}
+
+        {/* Forex */}
+        {forex.length > 0 && (
+          <Section title="Forex">
+            <div className="space-y-1">
+              {forex.slice(0, 8).map((f) => (
+                <ForexRow key={f.id} forex={f} />
+              ))}
+            </div>
+          </Section>
+        )}
       </div>
 
       <div className="border-t border-border/30 px-3 py-1.5 text-[9px] text-muted-foreground">
-        Sources: USGS, NASA EONET, CoinGecko (all free, no key)
+        Sources: USGS, NASA EONET, NASA ISS, GDACS, Open-Meteo, Celestrak, abuse.ch URLhaus, CoinGecko, Frankfurter API, adsb.fi, OpenSky (all free, no key required)
       </div>
     </div>
   );
@@ -143,6 +167,33 @@ function Section({ title, children }: { title: string; children: React.ReactNode
         {title}
       </h3>
       {children}
+    </div>
+  );
+}
+
+function CommodityRow({ commodity: c }: { commodity: CommodityTicker }) {
+  const isUp = c.changePercent24h >= 0;
+  return (
+    <div className="flex items-center justify-between text-xs">
+      <span className="font-medium text-foreground">{c.symbol}</span>
+      <span className="font-mono text-foreground">{c.price < 100 ? c.price.toFixed(2) : c.price.toLocaleString()}</span>
+      <span className="text-[9px] text-muted-foreground">{c.unit}</span>
+      <span className={`font-mono text-[10px] ${isUp ? 'text-green-400' : 'text-red-400'}`}>
+        {isUp ? '+' : ''}{c.changePercent24h.toFixed(1)}%
+      </span>
+    </div>
+  );
+}
+
+function ForexRow({ forex: f }: { forex: ForexTicker }) {
+  const isUp = f.changePercent24h >= 0;
+  return (
+    <div className="flex items-center justify-between text-xs">
+      <span className="font-medium text-foreground">{f.symbol}</span>
+      <span className="font-mono text-foreground">{f.rate.toFixed(4)}</span>
+      <span className={`font-mono text-[10px] ${isUp ? 'text-green-400' : 'text-red-400'}`}>
+        {isUp ? '+' : ''}{f.changePercent24h.toFixed(2)}%
+      </span>
     </div>
   );
 }

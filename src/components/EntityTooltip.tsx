@@ -2,7 +2,7 @@ import type { Entity } from '@/types/entities';
 import { knotsToKmh, metresToFeet } from '@/lib/geo';
 
 interface EntityTooltipProps {
-  entity: Entity;
+  entity: Entity | null | undefined;
   x: number;
   y: number;
 }
@@ -11,7 +11,12 @@ interface EntityTooltipProps {
  * Floating tooltip rendered over the Deck.gl canvas when hovering an entity.
  */
 export function EntityTooltip({ entity, x, y }: EntityTooltipProps) {
+  if (!entity || !entity.position) {
+    return null;
+  }
+
   const isAircraft = entity.type === 'aircraft';
+  const isSatellite = entity.type === 'satellite';
 
   return (
     <div
@@ -24,7 +29,9 @@ export function EntityTooltip({ entity, x, y }: EntityTooltipProps) {
           className={`rounded-full px-1.5 py-0.5 text-[10px] font-medium uppercase ${
             isAircraft
               ? 'bg-blue-500/20 text-blue-400'
-              : 'bg-teal-500/20 text-teal-400'
+              : isSatellite
+                ? 'bg-purple-500/20 text-purple-400'
+                : 'bg-teal-500/20 text-teal-400'
           }`}
         >
           {entity.type}

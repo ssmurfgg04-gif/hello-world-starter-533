@@ -1,11 +1,15 @@
 import { useEntityStore } from '@/store/entityStore';
 import { knotsToKmh, metresToFeet } from '@/lib/geo';
 
+interface EntityDetailSidebarProps {
+  onCenterOnEntity?: (lat: number, lon: number) => void;
+}
+
 /**
  * Sidebar panel that shows full metadata for a selected entity.
  * Appears on the right side when an entity is clicked on the map.
  */
-export function EntityDetailSidebar() {
+export function EntityDetailSidebar({ onCenterOnEntity }: EntityDetailSidebarProps) {
   const selectedId = useEntityStore((s) => s.selectedEntityId);
   const entities = useEntityStore((s) => s.entities);
   const trails = useEntityStore((s) => s.trails);
@@ -26,18 +30,32 @@ export function EntityDetailSidebar() {
         <div className="flex items-center gap-2">
           <span
             className={`inline-block h-3 w-3 rounded-full ${
-              isAircraft ? 'bg-blue-500' : 'bg-teal-500'
+              entity.type === 'aircraft' ? 'bg-blue-500' : 
+              entity.type === 'satellite' ? 'bg-purple-500' : 'bg-teal-500'
             }`}
           />
           <h3 className="text-lg font-bold text-foreground">{entity.label}</h3>
         </div>
-        <button
-          onClick={clearSelection}
-          className="rounded px-2 py-1 text-xs text-muted-foreground hover:bg-muted/50 hover:text-foreground"
-          title="Close (Esc)"
-        >
-          Close
-        </button>
+        <div className="flex gap-2">
+          {onCenterOnEntity && (
+            <button
+              onClick={() => {
+                if (entity) onCenterOnEntity(entity.position.lat, entity.position.lon);
+              }}
+              className="rounded px-2 py-1 text-xs text-muted-foreground hover:bg-muted/50 hover:text-foreground"
+              title="Center map on this entity"
+            >
+              Center
+            </button>
+          )}
+          <button
+            onClick={clearSelection}
+            className="rounded px-2 py-1 text-xs text-muted-foreground hover:bg-muted/50 hover:text-foreground"
+            title="Close (Esc)"
+          >
+            Close
+          </button>
+        </div>
       </div>
 
       {/* Details */}

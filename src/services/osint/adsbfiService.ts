@@ -19,7 +19,8 @@ import { useEntityStore } from '@/store/entityStore';
 // Config
 // ---------------------------------------------------------------------------
 
-const API_BASE = 'https://opendata.adsb.fi/api/v2';
+// Use Vite proxy to bypass CORS
+const API_URL = '/api/adsb/all';
 const POLL_INTERVAL_MS = 15_000; // 15 seconds
 
 // ---------------------------------------------------------------------------
@@ -84,7 +85,7 @@ function parseAircraft(ac: AdsbFiAircraft): Entity | null {
 
 async function fetchAll(): Promise<void> {
   try {
-    const response = await fetch(`${API_BASE}/all`);
+    const response = await fetch(API_URL);
 
     if (!response.ok) {
       if (response.status === 429) {

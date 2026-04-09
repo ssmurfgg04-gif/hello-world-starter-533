@@ -9,9 +9,9 @@
 // Entity domain
 // ---------------------------------------------------------------------------
 
-export type EntityType = 'aircraft' | 'vessel';
+export type EntityType = 'aircraft' | 'vessel' | 'satellite';
 
-export type DataProvider = 'adsb-exchange' | 'marine-traffic';
+export type DataProvider = 'adsb-exchange' | 'marine-traffic' | 'nasa' | 'aprs-fi' | 'opensky' | 'celestrak' | 'usgs' | 'nasa-eonet' | 'gdacs' | 'open-meteo' | 'coingecko' | 'frankfurter';
 
 export interface EntityPosition {
   /** Latitude in decimal degrees (WGS-84). */

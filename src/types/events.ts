@@ -56,6 +56,30 @@ export interface MarketAlert {
   timestamp: string;
 }
 
+export interface CommodityTicker {
+  id: string;
+  symbol: string;
+  name: string;
+  price: number;
+  unit: string;
+  change24h: number;
+  changePercent24h: number;
+  category: 'metals' | 'energy' | 'agriculture';
+  lastUpdated: string;
+}
+
+export interface ForexTicker {
+  id: string;
+  symbol: string;
+  name: string;
+  base: string;
+  quote: string;
+  rate: number;
+  change24h: number;
+  changePercent24h: number;
+  lastUpdated: string;
+}
+
 // ---------------------------------------------------------------------------
 // AI Analysis
 // ---------------------------------------------------------------------------

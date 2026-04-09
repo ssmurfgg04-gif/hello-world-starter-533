@@ -25,9 +25,24 @@ interface EntityState {
   // Layer visibility toggles
   showAircraft: boolean;
   showVessels: boolean;
+  showSatellites: boolean;
   showTrails: boolean;
   showRelations: boolean;
   showZones: boolean;
+  
+  // Provider filters (which data sources to show)
+  enabledProviders: Set<DataProvider>;
+  
+  // Trail configuration
+  trailLength: number;
+  maxTrailLength: number;
+  
+  // Filtering
+  minSpeedFilter: number; // Show only entities with speed > this (knots)
+  maxEntities: number; // Performance limit
+  
+  // Auto-zoom settings
+  autoZoomToCritical: boolean;
 
   /** Currently selected entity id (for detail sidebar). */
   selectedEntityId: string | null;
@@ -48,9 +63,23 @@ interface EntityActions {
   // Layer toggles
   toggleAircraft: () => void;
   toggleVessels: () => void;
+  toggleSatellites: () => void;
   toggleTrails: () => void;
   toggleRelations: () => void;
   toggleZones: () => void;
+  
+  // Provider filters
+  toggleProvider: (provider: DataProvider) => void;
+  enableAllProviders: () => void;
+  disableAllProviders: () => void;
+  
+  // Trail config
+  setTrailLength: (length: number) => void;
+  
+  // Filtering
+  setMinSpeedFilter: (speed: number) => void;
+  setMaxEntities: (count: number) => void;
+  toggleAutoZoom: () => void;
 
   /** Purge entities that have not been seen within `thresholdMs`. */
   pruneStale: (thresholdMs: number) => void;
@@ -67,7 +96,7 @@ export type EntityStore = EntityState & EntityActions;
 // Constants
 // ---------------------------------------------------------------------------
 
-const MAX_TRAIL_LENGTH = 120;
+const DEFAULT_TRAIL_LENGTH = 120;
 
 // ---------------------------------------------------------------------------
 // Store implementation
@@ -81,9 +110,16 @@ export const useEntityStore = create<EntityStore>((set, get) => ({
 
   showAircraft: true,
   showVessels: true,
+  showSatellites: true,
   showTrails: true,
   showRelations: true,
   showZones: true,
+  enabledProviders: new Set<DataProvider>(['adsb-exchange', 'marine-traffic', 'nasa', 'aprs-fi', 'opensky', 'celestrak']),
+  trailLength: DEFAULT_TRAIL_LENGTH,
+  maxTrailLength: 500,
+  minSpeedFilter: 0, // 0 = show all
+  maxEntities: 1000, // Max entities to display
+  autoZoomToCritical: false,
 
   selectedEntityId: null,
 
@@ -111,7 +147,7 @@ export const useEntityStore = create<EntityStore>((set, get) => ({
     set((state) => {
       const trails = new Map(state.trails);
       const existing = trails.get(entityId) ?? [];
-      const updated = [...existing, point].slice(-MAX_TRAIL_LENGTH);
+      const updated = [...existing, point].slice(-state.trailLength);
       trails.set(entityId, updated);
       return { trails };
     });
@@ -137,9 +173,23 @@ export const useEntityStore = create<EntityStore>((set, get) => ({
 
   toggleAircraft: () => set((s) => ({ showAircraft: !s.showAircraft })),
   toggleVessels: () => set((s) => ({ showVessels: !s.showVessels })),
+  toggleSatellites: () => set((s) => ({ showSatellites: !s.showSatellites })),
   toggleTrails: () => set((s) => ({ showTrails: !s.showTrails })),
   toggleRelations: () => set((s) => ({ showRelations: !s.showRelations })),
   toggleZones: () => set((s) => ({ showZones: !s.showZones })),
+  
+  toggleProvider: (provider) => set((s) => {
+    const next = new Set(s.enabledProviders);
+    if (next.has(provider)) next.delete(provider);
+    else next.add(provider);
+    return { enabledProviders: next };
+  }),
+  enableAllProviders: () => set({ enabledProviders: new Set<DataProvider>(['adsb-exchange', 'marine-traffic', 'nasa', 'aprs-fi', 'opensky', 'celestrak', 'usgs', 'nasa-eonet', 'gdacs']) }),
+  disableAllProviders: () => set({ enabledProviders: new Set<DataProvider>() }),
+  setTrailLength: (length) => set({ trailLength: Math.max(10, Math.min(500, length)) }),
+  setMinSpeedFilter: (speed) => set({ minSpeedFilter: Math.max(0, speed) }),
+  setMaxEntities: (count) => set({ maxEntities: Math.max(50, Math.min(2000, count)) }),
+  toggleAutoZoom: () => set((s) => ({ autoZoomToCritical: !s.autoZoomToCritical })),
 
   selectEntity: (id) => set({ selectedEntityId: id }),
   clearSelection: () => set({ selectedEntityId: null }),

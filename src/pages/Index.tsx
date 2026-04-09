@@ -1,20 +1,38 @@
-import { useEffect } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { DeckGlobe } from '@/components/DeckGlobe';
 import { ControlPanel } from '@/components/ControlPanel';
 import { EntityDetailSidebar } from '@/components/EntityDetailSidebar';
 import { SearchBar } from '@/components/SearchBar';
 import { IntelDashboard } from '@/components/IntelDashboard';
+import { SightingPanel } from '@/components/SightingPanel';
+import { LoadingOverlay } from '@/components/LoadingOverlay';
+import { AlertPanel } from '@/components/AlertPanel';
+import { ToastNotifications } from '@/components/ToastNotifications';
+import { DataExport } from '@/components/DataExport';
+import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts';
 import { connect as connectAdsbWs, disconnect as disconnectAdsbWs } from '@/services/osint/aircraftService';
 import { connect as connectAdsbFi, disconnect as disconnectAdsbFi } from '@/services/osint/adsbfiService';
 import { connect as connectOpenSky, disconnect as disconnectOpenSky } from '@/services/osint/openSkyService';
 import { connect as connectMaritime, disconnect as disconnectMaritime } from '@/services/osint/maritimeService';
+import { connect as connectVesselFeed, disconnect as disconnectVesselFeed } from '@/services/osint/vesselFeedService';
 import { connect as connectEarthquakes, disconnect as disconnectEarthquakes } from '@/services/osint/earthquakeService';
 import { connect as connectNaturalEvents, disconnect as disconnectNaturalEvents } from '@/services/osint/naturalEventsService';
 import { connect as connectMarkets, disconnect as disconnectMarkets } from '@/services/osint/marketService';
-import { shouldUseDemoMode, startSimulation, stopSimulation } from '@/services/simulation/demoSimulator';
+import { connect as connectCommodities, disconnect as disconnectCommodities } from '@/services/osint/commoditiesService';
+import { connect as connectForex, disconnect as disconnectForex } from '@/services/osint/forexService';
+import { connect as connectWeather, disconnect as disconnectWeather } from '@/services/osint/weatherService';
+import { connect as connectGDACS, disconnect as disconnectGDACS } from '@/services/osint/gdacsService';
+import { connect as connectSatellites, disconnect as disconnectSatellites } from '@/services/osint/satelliteService';
+import { connect as connectAPRS, disconnect as disconnectAPRS } from '@/services/osint/aprsService';
+import { connect as connectISS, disconnect as disconnectISS } from '@/services/osint/issService';
+import { connect as connectThreatIntel, disconnect as disconnectThreatIntel } from '@/services/osint/threatIntelService';
+// Demo simulator for synthetic data (fallback when live APIs unavailable due to CORS)
+import { startSimulation, stopSimulation } from '@/services/simulation/demoSimulator';
 import { startAutoFuse, stopAutoFuse } from '@/services/fusion/fusionEngine';
 import { startAnalysis, stopAnalysis } from '@/services/analysis/aiAnalysisEngine';
+import { startSightingDetection, stopSightingDetection } from '@/services/fusion/sightingDetection';
+import { initPersistence, shutdownPersistence } from '@/services/persistence/persistenceIntegration';
 import { useEntityStore } from '@/store/entityStore';
 import * as audit from '@/services/audit/auditLogger';
 
@@ -28,75 +46,119 @@ function getAircraftStrategy(): 'adsb-ws' | 'free' {
 
 const Index = () => {
   useKeyboardShortcuts();
+  const [deckRef, setDeckRef] = useState<{ centerOnEntity: (lat: number, lon: number) => void } | null>(null);
+  const [exportOpen, setExportOpen] = useState(false);
+  
+  const handleCenterOnEntity = useCallback((lat: number, lon: number) => {
+    deckRef?.centerOnEntity(lat, lon);
+  }, [deckRef]);
+  
+  // Listen for export trigger event
+  useEffect(() => {
+    const handler = () => setExportOpen(true);
+    window.addEventListener('trigger-export', handler);
+    return () => window.removeEventListener('trigger-export', handler);
+  }, []);
 
   useEffect(() => {
-    const demoMode = shouldUseDemoMode();
+    // LIVE DATA ONLY - Aircraft sources (free, no API key required)
+    audit.info('boot', 'Aircraft sources: adsb.fi + OpenSky (free, global, real-time)');
+    connectAdsbFi();  // Primary: adsb.fi (free, no key)
+    connectOpenSky(); // Backup: OpenSky (free, no key)
 
-    if (demoMode) {
-      audit.info('boot', 'Starting in DEMO simulation mode');
-      startSimulation();
-    } else {
-      // Aircraft data source
-      const aircraftStrategy = getAircraftStrategy();
-      if (aircraftStrategy === 'adsb-ws') {
-        audit.info('boot', 'Aircraft source: ADS-B Exchange WebSocket (API key present)');
-        connectAdsbWs();
-      } else {
-        audit.info('boot', 'Aircraft source: adsb.fi REST API (free, no key, no signup)');
-        connectAdsbFi();
-      }
-
-      // Maritime data source
-      const aisKey = import.meta.env.VITE_AIS_API_KEY ?? '';
-      if (aisKey) {
-        audit.info('boot', 'Maritime source: AISstream.io WebSocket');
-        connectMaritime();
-      } else {
-        audit.warn('boot', 'No AIS API key -- maritime feed disabled');
-      }
-    }
+    // Maritime data - always use vessel feed (demo + live polling)
+    connectVesselFeed();
+    audit.info('boot', 'Maritime source: Vessel feed active (demo + live fallback)');
 
     // Always-on services (free, no key, no signup)
     connectEarthquakes();
     connectNaturalEvents();
     connectMarkets();
-    audit.info('boot', 'Started: USGS earthquakes, NASA EONET, CoinGecko markets (all free)');
+    connectCommodities();
+    connectForex();
+    connectWeather();
+    connectGDACS();
+    connectSatellites();
+    connectISS(); // NASA ISS live tracking (free)
+    connectAPRS(); // APRS amateur radio (requires API key)
+    connectThreatIntel(); // Cyber threat intel (abuse.ch URLhaus, free)
+    audit.info('boot', 'Started: USGS, NASA EONET, NASA ISS, GDACS, Open-Meteo, Celestrak, abuse.ch URLhaus, CoinGecko, Frankfurter, adsb.fi, OpenSky (all free, no key required)');
+
+    // Initialize persistence layer (PostgreSQL + TimescaleDB)
+    initPersistence().then((connected) => {
+      if (connected) {
+        audit.info('boot', 'Persistence layer active (PostgreSQL + TimescaleDB)');
+      } else {
+        audit.warn('boot', 'Persistence layer disabled (database unavailable)');
+      }
+    });
+
+    // Demo simulator as fallback - starts after 8s if no live aircraft data flowing
+    const demoCheckTimer = setTimeout(() => {
+      const aircraftCount = Array.from(useEntityStore.getState().entities.values()).filter(e => e.type === 'aircraft').length;
+      if (aircraftCount < 5) {
+        startSimulation();
+        audit.info('boot', 'Demo simulator active: synthetic aircraft + vessels (fallback - no live data detected)');
+      } else {
+        audit.info('boot', 'Live aircraft data flowing - demo simulator skipped');
+      }
+    }, 8000);
 
     // Analysis engines
     startAutoFuse();
     startAnalysis();
-
+    
+    // Sighting detection (Dark Fleet tracker)
+    startSightingDetection();
+    audit.info('boot', 'Sighting detection active (aircraft-vessel proximity monitoring)');
+      
     // Stale entity cleanup
     const pruneTimer = setInterval(() => {
       useEntityStore.getState().pruneStale(STALE_THRESHOLD_MS);
     }, PRUNE_INTERVAL_MS);
 
     return () => {
-      if (demoMode) {
-        stopSimulation();
-      } else {
-        disconnectAdsbWs();
-        disconnectAdsbFi();
-        disconnectOpenSky();
-        disconnectMaritime();
-      }
+      disconnectAdsbWs();
+      disconnectAdsbFi();
+      disconnectOpenSky();
+      disconnectMaritime();
       disconnectEarthquakes();
       disconnectNaturalEvents();
       disconnectMarkets();
+      disconnectCommodities();
+      disconnectVesselFeed();
+      disconnectForex();
+      disconnectWeather();
+      shutdownPersistende();
+      cisconnectGDACS();eTimr);
+      clearTimeout(demoCheck
+      disconnectSatellites();
+      disconnectISS();
+      disconnectAPRS();
+      disconnectThreatIntel();
+      stopSimulation();
       stopAutoFuse();
       stopAnalysis();
+      stopSightingDetection();
       clearInterval(pruneTimer);
     };
   }, []);
 
   return (
-    <div className="osint-root relative h-screen w-screen overflow-hidden bg-black">
-      <DeckGlobe />
-      <ControlPanel />
-      <SearchBar />
-      <IntelDashboard />
-      <EntityDetailSidebar />
-    </div>
+    <ErrorBoundary>
+      <div className="osint-root relative h-screen w-screen overflow-hidden bg-black">
+        <LoadingOverlay />
+        <AlertPanel />
+        <DeckGlobe onViewStateRef={setDeckRef} />
+        <ControlPanel />
+        <SearchBar />
+        <SightingPanel />
+        <IntelDashboard />
+        <ToastNotifications />
+        <EntityDetailSidebar onCenterOnEntity={handleCenterOnEntity} />
+        <DataExport isOpen={exportOpen} onClose={() => setExportOpen(false)} />
+      </div>
+    </ErrorBoundary>
   );
 };
 

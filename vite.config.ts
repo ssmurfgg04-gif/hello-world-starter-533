@@ -8,6 +8,38 @@ export default defineConfig(({ mode }) => ({
   server: {
     host: "::",
     port: 8080,
+    proxy: {
+      // Proxy for adsb.fi API (CORS workaround)
+      '/api/adsb': {
+        target: 'https://opendata.adsb.fi/api/v2',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/api\/adsb/, ''),
+      },
+      // Proxy for OpenSky API (CORS workaround)
+      '/api/opensky': {
+        target: 'https://opensky-network.org/api',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/api\/opensky/, ''),
+      },
+      // Proxy for ISS API
+      '/api/iss': {
+        target: 'https://api.open-notify.org',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/api\/iss/, ''),
+      },
+      // Proxy for Celestrak
+      '/api/celestrak': {
+        target: 'https://celestrak.org',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/api\/celestrak/, ''),
+      },
+      // Proxy for Forex API
+      '/api/forex': {
+        target: 'https://api.frankfurter.app',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/api\/forex/, ''),
+      },
+    },
   },
   plugins: [react(), mode === "development" && componentTagger()].filter(Boolean),
   resolve: {

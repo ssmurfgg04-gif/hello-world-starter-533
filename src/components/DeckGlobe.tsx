@@ -6,10 +6,10 @@
  * provider (free, open-source) to avoid any Mapbox token requirement.
  */
 
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import DeckGL from '@deck.gl/react';
 import { Map as MapGL } from 'react-map-gl/maplibre';
-import { ScatterplotLayer, ArcLayer, PathLayer, TextLayer, GeoJsonLayer } from '@deck.gl/layers';
+import { ScatterplotLayer, ArcLayer, PathLayer, TextLayer, GeoJsonLayer, IconLayer } from '@deck.gl/layers';
 import { HeatmapLayer } from '@deck.gl/aggregation-layers';
 import type { MapViewState, PickingInfo, Layer } from '@deck.gl/core';
 import { useEntityStore } from '@/store/entityStore';
@@ -33,7 +33,8 @@ const INITIAL_VIEW_STATE: MapViewState = {
   bearing: 0,
 };
 
-// Free tile source (no API key required)
+// Free tile sources (no API key required)
+// dark-matter = high contrast dark theme, voyager = detailed but bright, positron = light
 const MAP_STYLE = 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json';
 
 // ---------------------------------------------------------------------------
@@ -49,7 +50,11 @@ const TRAIL_COLOUR: [number, number, number, number] = [168, 85, 247, 120]; // p
 // Component
 // ---------------------------------------------------------------------------
 
-export function DeckGlobe() {
+interface DeckGlobeProps {
+  onViewStateRef?: (ref: { centerOnEntity: (lat: number, lon: number) => void }) => void;
+}
+
+export function DeckGlobe({ onViewStateRef }: DeckGlobeProps) {
   const [viewState, setViewState] = useState<MapViewState>(INITIAL_VIEW_STATE);
   const [hoverInfo, setHoverInfo] = useState<{
     entity: Entity;
@@ -61,8 +66,13 @@ export function DeckGlobe() {
   const entities = useEntityStore((s) => s.entities);
   const trails = useEntityStore((s) => s.trails);
   const relations = useEntityStore((s) => s.relations);
+  const selectedEntityId = useEntityStore((s) => s.selectedEntityId);
+  const enabledProviders = useEntityStore((s) => s.enabledProviders);
+  const minSpeedFilter = useEntityStore((s) => s.minSpeedFilter);
+  const maxEntities = useEntityStore((s) => s.maxEntities);
   const showAircraft = useEntityStore((s) => s.showAircraft);
   const showVessels = useEntityStore((s) => s.showVessels);
+  const showSatellites = useEntityStore((s) => s.showSatellites);
   const showTrails = useEntityStore((s) => s.showTrails);
   const showRelations = useEntityStore((s) => s.showRelations);
   const showZones = useEntityStore((s) => s.showZones);
@@ -73,16 +83,53 @@ export function DeckGlobe() {
   const showEarthquakes = useGlobalEventsStore((s) => s.showEarthquakes);
   const showNaturalEvents = useGlobalEventsStore((s) => s.showNaturalEvents);
 
-  // Derived data
-  const entityArray = useMemo(() => Array.from(entities.values()), [entities]);
-  const aircraftData = useMemo(
-    () => entityArray.filter((e) => e.type === 'aircraft'),
-    [entityArray],
-  );
-  const vesselData = useMemo(
-    () => entityArray.filter((e) => e.type === 'vessel'),
-    [entityArray],
-  );
+  // Derived data - filtered by enabled providers, speed, and limited by maxEntities
+  const entityArray = useMemo(() => {
+    let filtered = Array.from(entities.values()).filter((e) => {
+      // Provider filter
+      if (!enabledProviders.has(e.provider)) return false;
+      // Speed filter (0 means show all)
+      if (minSpeedFilter > 0 && e.speed < minSpeedFilter) return false;
+      return true;
+    });
+    // Limit total entities for performance
+    if (filtered.length > maxEntities) {
+      // Sort by speed (fastest first) and take top maxEntities
+      filtered = filtered.sort((a, b) => b.speed - a.speed).slice(0, maxEntities);
+    }
+    return filtered;
+  }, [entities, enabledProviders, minSpeedFilter, maxEntities]);
+  const aircraftData = useMemo(() => entityArray.filter((e) => e.type === 'aircraft'), [entityArray]);
+  const vesselData = useMemo(() => entityArray.filter((e) => e.type === 'vessel'), [entityArray]);
+  const satelliteData = useMemo(() => entityArray.filter((e) => e.type === 'satellite'), [entityArray]);
+  
+  // Zoom level for clustering decision
+  const zoomLevel = viewState.zoom;
+  
+  const centerOnEntity = useCallback((lat: number, lon: number) => {
+    setViewState((prev) => ({ ...prev, latitude: lat, longitude: lon, zoom: 6 }));
+  }, []);
+  
+  useEffect(() => {
+    if (onViewStateRef) onViewStateRef({ centerOnEntity });
+  }, [onViewStateRef, centerOnEntity]);
+  
+  // Listen for auto-zoom events from critical notifications
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const detail = (e as CustomEvent).detail;
+      if (detail?.lat && detail?.lon) {
+        setViewState((prev) => ({ 
+          ...prev, 
+          latitude: detail.lat, 
+          longitude: detail.lon, 
+          zoom: 5 
+        }));
+      }
+    };
+    window.addEventListener('auto-zoom-to', handler);
+    return () => window.removeEventListener('auto-zoom-to', handler);
+  }, []);
 
   // Trail paths: convert Map<id, TrailPoint[]> -> array of coordinate arrays
   const trailPaths = useMemo(() => {
@@ -157,21 +204,44 @@ export function DeckGlobe() {
   const layers = useMemo(() => {
     const result: Layer[] = [];
 
-    // Aircraft scatterplot
-    if (showAircraft) {
+    // Aircraft scatter layer (simple performance optimization at low zoom)
+    if (showAircraft && zoomLevel < 4) {
       result.push(
         new ScatterplotLayer({
+          id: 'aircraft-simple',
+          data: aircraftData,
+          getPosition: (d: Entity) => [d.position.lon, d.position.lat],
+          getFillColor: AIRCRAFT_COLOUR,
+          getRadius: 2000,
+          radiusMinPixels: 3,
+          radiusMaxPixels: 10,
+          pickable: false,
+          updateTriggers: { getPosition: [aircraftData] },
+        }),
+      );
+    }
+
+    // Aircraft icon layer
+    if (showAircraft) {
+      result.push(
+        new IconLayer({
           id: 'aircraft-layer',
           data: aircraftData,
           pickable: true,
-          filled: true,
-          radiusMinPixels: 4,
-          radiusMaxPixels: 12,
+          iconAtlas: '/icons/plane.svg',
+          iconMapping: {
+            plane: { x: 0, y: 0, width: 24, height: 24, mask: false },
+          },
+          getIcon: () => 'plane',
           getPosition: (d: Entity) => [d.position.lon, d.position.lat, d.position.alt ?? 0],
-          getFillColor: () => AIRCRAFT_COLOUR,
-          getRadius: 6,
+          getSize: 24,
+          sizeMinPixels: 16,
+          sizeMaxPixels: 40,
+          getAngle: (d: Entity) => d.heading ?? 0,
+          angleAlignment: 'map',
           updateTriggers: {
             getPosition: [aircraftData],
+            getAngle: [aircraftData],
           },
         }),
       );
@@ -199,22 +269,61 @@ export function DeckGlobe() {
       );
     }
 
-    // Vessel scatterplot
+    // Satellite icon layer
+    if (showSatellites) {
+      result.push(
+        new IconLayer({
+          id: 'satellite-layer',
+          data: satelliteData,
+          pickable: true,
+          iconAtlas: '/icons/satellite.svg',
+          iconMapping: { satellite: { x: 0, y: 0, width: 24, height: 24, mask: false } },
+          getIcon: () => 'satellite',
+          getPosition: (d: Entity) => [d.position.lon, d.position.lat, d.position.alt ?? 0],
+          getSize: 24,
+          sizeMinPixels: 16,
+          sizeMaxPixels: 40,
+          getAngle: (d: Entity) => d.heading ?? 0,
+          angleAlignment: 'map',
+          updateTriggers: { getPosition: [satelliteData], getAngle: [satelliteData] },
+        }),
+      );
+      result.push(
+        new TextLayer({
+          id: 'satellite-labels',
+          data: satelliteData,
+          getPosition: (d: Entity) => [d.position.lon, d.position.lat],
+          getText: (d: Entity) => d.label.slice(0, 15),
+          getSize: 10,
+          getColor: [200, 180, 255, 200],
+          getPixelOffset: [0, -14],
+          fontFamily: 'Inter, system-ui, sans-serif',
+          fontWeight: 500,
+          outlineWidth: 2,
+          outlineColor: [0, 0, 0, 200],
+          billboard: true,
+          updateTriggers: { getPosition: [satelliteData], getText: [satelliteData] },
+        }),
+      );
+    }
+
+    // Vessel icon layer
     if (showVessels) {
       result.push(
-        new ScatterplotLayer({
+        new IconLayer({
           id: 'vessel-layer',
           data: vesselData,
           pickable: true,
-          filled: true,
-          radiusMinPixels: 4,
-          radiusMaxPixels: 14,
+          iconAtlas: '/icons/ship.svg',
+          iconMapping: { ship: { x: 0, y: 0, width: 24, height: 24, mask: false } },
+          getIcon: () => 'ship',
           getPosition: (d: Entity) => [d.position.lon, d.position.lat],
-          getFillColor: () => VESSEL_COLOUR,
-          getRadius: 7,
-          updateTriggers: {
-            getPosition: [vesselData],
-          },
+          getSize: 28,
+          sizeMinPixels: 18,
+          sizeMaxPixels: 44,
+          getAngle: (d: Entity) => d.heading ?? 0,
+          angleAlignment: 'map',
+          updateTriggers: { getPosition: [vesselData], getAngle: [vesselData] },
         }),
       );
 
@@ -240,24 +349,47 @@ export function DeckGlobe() {
       );
     }
 
-    // Trails
-    if (showTrails) {
-      result.push(
-        new PathLayer({
-          id: 'trail-layer',
-          data: trailPaths,
-          getPath: (d: { path: [number, number][] }) => d.path,
-          getColor: () => TRAIL_COLOUR,
-          getWidth: 2,
-          widthMinPixels: 1,
-          widthMaxPixels: 4,
-          jointRounded: true,
-          capRounded: true,
-          updateTriggers: {
-            getPath: [trailPaths],
-          },
-        }),
-      );
+    // Trails - highlight selected entity trail
+    const selectedTrail = selectedEntityId ? trails.get(selectedEntityId) : null;
+    const selectedTrailPath = selectedTrail && selectedTrail.length > 1 
+      ? [{ id: selectedEntityId, path: selectedTrail.map((p) => [p.lon, p.lat]) }] 
+      : [];
+    
+    if (showTrails || selectedTrailPath.length > 0) {
+      // Regular trails
+      if (showTrails) {
+        result.push(
+          new PathLayer({
+            id: 'trail-layer',
+            data: trailPaths,
+            getPath: (d: { path: [number, number][] }) => d.path,
+            getColor: () => TRAIL_COLOUR,
+            getWidth: 2,
+            widthMinPixels: 1,
+            widthMaxPixels: 4,
+            jointRounded: true,
+            capRounded: true,
+            updateTriggers: { getPath: [trailPaths] },
+          }),
+        );
+      }
+      // Selected entity highlighted trail
+      if (selectedTrailPath.length > 0) {
+        result.push(
+          new PathLayer({
+            id: 'selected-trail-layer',
+            data: selectedTrailPath,
+            getPath: (d: { path: [number, number][] }) => d.path,
+            getColor: () => [255, 255, 255, 200], // White highlight
+            getWidth: 4,
+            widthMinPixels: 2,
+            widthMaxPixels: 6,
+            jointRounded: true,
+            capRounded: true,
+            updateTriggers: { getPath: [selectedTrailPath] },
+          }),
+        );
+      }
     }
 
     // GeoJSON exclusion / monitoring zones
@@ -265,7 +397,7 @@ export function DeckGlobe() {
       result.push(
         new GeoJsonLayer({
           id: 'exclusion-zones',
-          data: EXCLUSION_ZONES as any,
+          data: EXCLUSION_ZONES,
           pickable: true,
           stroked: true,
           filled: true,
@@ -371,6 +503,7 @@ export function DeckGlobe() {
   }, [
     aircraftData,
     vesselData,
+    satelliteData,
     trailPaths,
     arcData,
     earthquakeData,
@@ -378,6 +511,7 @@ export function DeckGlobe() {
     entityArray,
     showAircraft,
     showVessels,
+    showSatellites,
     showTrails,
     showRelations,
     showZones,
@@ -389,8 +523,7 @@ export function DeckGlobe() {
     <div className="deck-globe-container h-full w-full">
       <DeckGL
         viewState={viewState}
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        onViewStateChange={(e: any) => setViewState(e.viewState)}
+        onViewStateChange={(e: { viewState: MapViewState }) => setViewState(e.viewState)}
         controller={true}
         layers={layers}
         onHover={onHover}

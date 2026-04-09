@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { GeoEvent, MarketTicker, MarketAlert, AnalysisInsight } from '@/types/events';
+import type { GeoEvent, MarketTicker, MarketAlert, AnalysisInsight, CommodityTicker, ForexTicker } from '@/types/events';
 
 interface GlobalEventsState {
   /** Geo events by source key. */
@@ -11,6 +11,11 @@ interface GlobalEventsState {
   marketTickers: MarketTicker[];
   /** Market alerts (recent significant moves). */
   marketAlerts: MarketAlert[];
+
+  /** Commodity tickers. */
+  commodityTickers: CommodityTicker[];
+  /** Forex tickers. */
+  forexTickers: ForexTicker[];
 
   /** AI-generated analysis insights. */
   insights: AnalysisInsight[];
@@ -25,6 +30,8 @@ interface GlobalEventsActions {
   setGeoEvents: (source: string, events: GeoEvent[]) => void;
   setMarketTickers: (tickers: MarketTicker[]) => void;
   addMarketAlerts: (alerts: MarketAlert[]) => void;
+  setCommodityTickers: (tickers: CommodityTicker[]) => void;
+  setForexTickers: (tickers: ForexTicker[]) => void;
   setInsights: (insights: AnalysisInsight[]) => void;
   addInsight: (insight: AnalysisInsight) => void;
   toggleEarthquakes: () => void;
@@ -42,6 +49,8 @@ export const useGlobalEventsStore = create<GlobalEventsStore>((set) => ({
   allGeoEvents: [],
   marketTickers: [],
   marketAlerts: [],
+  commodityTickers: [],
+  forexTickers: [],
   insights: [],
 
   showEarthquakes: true,
@@ -62,6 +71,10 @@ export const useGlobalEventsStore = create<GlobalEventsStore>((set) => ({
     set((s) => ({
       marketAlerts: [...alerts, ...s.marketAlerts].slice(0, MAX_ALERTS),
     })),
+
+  setCommodityTickers: (tickers: CommodityTicker[]) => set({ commodityTickers: tickers }),
+
+  setForexTickers: (tickers: ForexTicker[]) => set({ forexTickers: tickers }),
 
   setInsights: (insights) => set({ insights }),
 
